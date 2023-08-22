@@ -32,7 +32,20 @@ use crate::Credentials;
 /// assert_eq!(bucket.region(), "eu-west-1");
 /// assert_eq!(bucket.object_url("duck.jpg").expect("url is valid").as_str(), "https://s3.dualstack.eu-west-1.amazonaws.com/rusty-s3/duck.jpg");
 /// ```
+/// 
+/// ```rust
+/// # use rusty_s3::{Bucket, UrlStyle};
+/// let endpoint = "https://myaccount.r2.cloudflarestorage.com".parse().expect("endpoint is a valid Url");
+/// let path_style = UrlStyle::Path;
+/// let name = "rusty-s3";
 ///
+/// let bucket = Bucket::new(endpoint, path_style, name, "").expect("Url has a valid scheme and host");
+/// assert_eq!(bucket.base_url().as_str(), "https://myaccount.r2.cloudflarestorage.com/rusty-s3/");
+/// assert_eq!(bucket.name(), "rusty-s3");
+/// assert_eq!(bucket.region(), "");
+/// assert_eq!(bucket.object_url("duck.jpg").expect("url is valid").as_str(), "https://myaccount.r2.cloudflarestorage.com/rusty-s3/duck.jpg");
+/// ```
+/// 
 /// ## Domain style url
 ///
 /// ```rust
@@ -131,8 +144,12 @@ impl Bucket {
 fn base_url(mut endpoint: Url, name: &str, path_style: UrlStyle) -> Url {
     match path_style {
         UrlStyle::Path => {
-            let path = format!("{name}/");
-            endpoint.join(&path).unwrap()
+            if name.is_empty() {
+                endpoint
+            } else {
+                let path = format!("{name}/");
+                endpoint.join(&path).unwrap()
+            }
         }
         UrlStyle::VirtualHost => {
             let host = format!("{}.{}", name, endpoint.host_str().unwrap());
@@ -335,6 +352,23 @@ mod tests {
             .unwrap();
         let name = "rusty-s3";
         let region = "eu-west-1";
+        let bucket = Bucket::new(endpoint, UrlStyle::Path, name, region).unwrap();
+
+        assert_eq!(bucket.base_url(), &base_url);
+        assert_eq!(bucket.name(), name);
+        assert_eq!(bucket.region(), region);
+    }
+
+    #[test]
+    fn new_pathstyle_no_region() {
+        let endpoint: Url = "https://myaccount.r2.cloudflarestorage.com"
+            .parse()
+            .unwrap();
+        let base_url: Url = "https://myaccount.r2.cloudflarestorage.com/rusty-s3/"
+            .parse()
+            .unwrap();
+        let name = "rusty-s3";
+        let region = "";
         let bucket = Bucket::new(endpoint, UrlStyle::Path, name, region).unwrap();
 
         assert_eq!(bucket.base_url(), &base_url);
